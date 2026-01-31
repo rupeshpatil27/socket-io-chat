@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import express from "express";
+import cors from "cors";
 import { Server } from "socket.io";
 
 const app = express();
@@ -11,9 +12,15 @@ const io = new Server(server, {
   },
 });
 
-// Handle new connections
+const ROOM = "group";
+
 io.on("connection", (socket) => {
   console.log(`User Connected: ${socket.id}`);
+
+  socket.on("joinRoom", async (userName) => {
+    console.log(`${userName} is joining the group.`);
+    await socket.join(ROOM);
+  });
 });
 
 app.get("/", (req, res) => {

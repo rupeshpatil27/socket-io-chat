@@ -15,7 +15,13 @@ const App = () => {
 
   useEffect(() => {
     socket.current = connectWS();
+
+    socket.current.on("connect", () => {});
   }, []);
+
+  //   useEffect(() => {
+  //     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  //   }, [messages]);
 
   const joinChat = () => {
     if (userName !== "") setJoined(true);
