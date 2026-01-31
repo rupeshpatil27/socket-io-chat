@@ -20,6 +20,20 @@ io.on("connection", (socket) => {
   socket.on("joinRoom", async (userName) => {
     console.log(`${userName} is joining the group.`);
     await socket.join(ROOM);
+
+    socket.to(ROOM).emit("roomNotice", userName);
+  });
+
+  socket.on("chatMessage", (msg) => {
+    socket.to(ROOM).emit("chatMessage", msg);
+  });
+  
+  socket.on("typing", (userName) => {
+    socket.to(ROOM).emit("typing", userName);
+  });
+  
+  socket.on("stopTyping", (userName) => {
+    socket.to(ROOM).emit("stopTyping", userName);
   });
 });
 

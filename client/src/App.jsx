@@ -6,25 +6,77 @@ import { MdDoneAll } from "react-icons/md";
 import { connectWS } from "./lib/ws";
 
 const App = () => {
+  const timer = useRef(null);
   const socket = useRef(null);
   const chatEndRef = useRef(null);
   const [userName, setUserName] = useState("");
   const [joined, setJoined] = useState(false);
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState([]);
+  const [typers, setTypers] = useState([]);
 
   useEffect(() => {
     socket.current = connectWS();
 
-    socket.current.on("connect", () => {});
+    socket.current.on("connect", () => {
+      socket.current.on("roomNotice", (userName) => {
+        console.log(`${userName} joined the group.`);
+      });
+
+      socket.current.on("chatMessage", (msg) => {
+        setMessages((prev) => [...prev, msg]);
+      });
+
+      socket.current.on("typing", (userName) => {
+        setTypers((prev) => {
+          const isExist = prev.find((typer) => typer === userName);
+          if (!isExist) {
+            return [...prev, userName];
+          }
+
+          return prev;
+        });
+      });
+
+      socket.current.on("stopTyping", (userName) => {
+        setTypers((prev) => prev.filter((typer) => typer !== userName));
+      });
+    });
+
+    return () => {
+      socket.current.off("roomNotice");
+      socket.current.off("chatMessage");
+      socket.current.off("typing");
+      socket.current.off("stopTyping");
+    };
   }, []);
 
-  //   useEffect(() => {
-  //     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  //   }, [messages]);
+  useEffect(() => {
+    if (message) {
+      socket.current.emit("typing", userName);
+      clearTimeout(timer.current);
+    }
+    timer.current = setTimeout(() => {
+      socket.current.emit("stopTyping", userName);
+    }, 1000);
 
-  const joinChat = () => {
-    if (userName !== "") setJoined(true);
+    return () => {
+      clearTimeout(timer.current);
+    };
+  }, [message, userName]);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const handleNameSubmit = () => {
+    const trim = userName.trim();
+    if (!trim) return;
+
+    //join room
+    socket.current.emit("joinRoom", trim);
+
+    setJoined(true);
   };
 
   const sendMessage = async () => {
@@ -41,9 +93,18 @@ const App = () => {
         minute: "2-digit",
       }),
     };
-    // socket.emit("send_message", messageData);
     setMessages((list) => [...list, messageData]);
+
+    socket.current.emit("chatMessage", messageData);
+
     setMessage("");
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
   };
 
   if (!joined) {
@@ -61,7 +122,7 @@ const App = () => {
             onChange={(e) => setUserName(e.target.value)}
           />
           <button
-            onClick={() => userName && setJoined(true)}
+            onClick={handleNameSubmit}
             className="w-full py-3 bg-[#00a884] text-white font-bold rounded hover:bg-[#008f70] transition-colors"
           >
             LOG IN
@@ -82,7 +143,13 @@ const App = () => {
             <h2 className="text-[15px] font-semibold text-[#111b21]">
               General Group
             </h2>
-            <p className="text-[12px] text-[#667781]">online</p>
+            {typers.length ? (
+              <p className="text-[12px] text-[#667781]">
+                {typers.join(", ")} is typing...
+              </p>
+            ) : (
+              ""
+            )}
           </div>
         </div>
         <div className="flex space-x-5 items-center text-[#54656f] text-xl">
@@ -143,7 +210,7 @@ const App = () => {
           placeholder="Type a message"
           className="flex-1 py-2.5 px-4 bg-white rounded-lg resize-none outline-none text-[#111b21] text-[15px]"
           onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+          onKeyDown={handleKeyDown}
         />
         <button onClick={sendMessage} className="text-[#54656f] text-2xl">
           <IoMdSend
